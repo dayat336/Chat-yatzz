@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Private Chat App</title>
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: #0b141a;
+      color: #e9edef;
+      overflow: hidden;
+    }
+
+    /* Modal Login */
+    #authScreen {
+      position: fixed;
+      inset: 0;
+      background: #0b141a;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+      z-index: 100;
+    }
+
+    .card {
+      background: #111b21;
+      border: 1px solid #222d34;
+      padding: 24px;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 360px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    }
+
+    .card h2 {
+      margin-bottom: 8px;
+      color: #00a884;
+    }
+
+    .card p {
+      font-size: 13px;
+      color: #8696a0;
+      margin-bottom: 20px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 12px;
+      background: #202c33;
+      border: 1px solid #2a3942;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+      margin-bottom: 12px;
+    }
+
+    input[type="text"]:focus {
+      border-color: #00a884;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 12px;
+      background: #00a884;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-weight: bold;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    .btn:hover {
+      background: #029071;
+    }
+
+    /* Layout Utama */
+    #appLayout {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      position: relative;
+    }
+
+    /* Sidebar / Daftar Kontak */
+    #sidebar {
+      width: 100%;
+      height: 100%;
+      background: #111b21;
+      display: flex;
+      flex-direction: column;
+      border-right: 1px solid #222d34;
+      z-index: 10;
+    }
+
+    .header {
+      padding: 12px 16px;
+      background: #202c33;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+      min-height: 60px;
+    }
+
+    .avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: #00a884;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+
+    .user-info {
+      margin-left: 12px;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .user-info h3 {
+      font-size: 15px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .user-info p {
+      font-size: 11px;
+      color: #00a884;
+      cursor: pointer;
+    }
+
+    .add-btn {
+      background: #00a884;
+      border: none;
+      color: white;
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    #chatList {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    /* Area Chat */
+    #chatArea {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      background: #0b141a;
+      position: absolute;
+      top: 0;
+      left: 0;
+      z-index: 20;
+    }
+
+    #messagesContainer {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background-image: radial-gradient(#1f2937 1px, transparent 1px);
+      background-size: 20px 20px;
+    }
+
+    .message {
+      max-width: 80%;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+
+    .message.me {
+      align-self: flex-end;
+      background: #005c4b;
+      color: #e9edef;
+      border-top-right-radius: 0;
+    }
+
+    .message.them {
+      align-self: flex-start;
+      background: #202c33;
+      color: #e9edef;
+      border-top-left-radius: 0;
+    }
+
+    .message .time {
+      font-size: 10px;
+      color: #8696a0;
+      text-align: right;
+      margin-top: 4px;
+    }
+
+    #messageForm {
+      padding: 10px;
+      background: #202c33;
+      display: flex;
+      gap: 8px;
+    }
+
+    #messageInput {
+      margin-bottom: 0;
+    }
+
+    .contact-item {
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      border-bottom: 1px solid #222d34;
+      cursor: pointer;
+    }
+
+    .contact-item:hover {
+      background: #202c33;
+    }
+
+    .hidden { display: none !important; }
+
+    /* RESPONSIVE BREAKPOINT (Layar Besar: Tablet & Laptop) */
+    @media (min-width: 650px) {
+      #sidebar {
+        width: 350px !important;
+        position: relative !important;
+        display: flex !important;
+      }
+
+      #chatArea {
+        position: relative !important;
+        flex: 1 !important;
+        width: auto !important;
+        display: flex !important;
+      }
+
+      #backBtn {
+        display: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Screen Login -->
+  <div id="authScreen">
+    <div class="card">
+      <h2>Chat Privat</h2>
+      <p>Masukkan nama kamu untuk mulai mengobrol</p>
+      <form id="loginForm">
+        <input type="text" id="usernameInput" placeholder="Nama kamu..." required>
+        <button type="submit" class="btn">Masuk Chat</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Main App Layout -->
+  <div id="appLayout" class="hidden">
+    
+    <!-- Sidebar / Daftar Kontak -->
+    <div id="sidebar">
+      <div class="header">
+        <div style="display: flex; align-items: center; min-width: 0;">
+          <div id="myAvatar" class="avatar">?</div>
+          <div class="user-info">
+            <h3 id="myUsername">...</h3>
+            <p id="myUserId" title="Klik untuk salin ID">ID: ...</p>
+          </div>
+        </div>
+        <button id="addContactBtn" class="add-btn">+ Teman</button>
+      </div>
+
+      <div id="chatList"></div>
+    </div>
+
+    <!-- Area Chat -->
+    <div id="chatArea" class="hidden">
+      <div class="header" style="background: #202c33;">
+        <div style="display: flex; align-items: center; min-width: 0;">
+          <button id="backBtn" class="add-btn" style="margin-right: 10px; background: #2a3942;">←</button>
+          <div id="activeAvatar" class="avatar">?</div>
+          <div class="user-info">
+            <h3 id="activeName">Pilih Teman</h3>
+            <p id="activeStatus" style="color:#8696a0;">Pilih kontak untuk mengobrol</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="messagesContainer">
+        <div id="emptyNotice" style="text-align: center; color: #8696a0; margin-top: 50px;">
+          Klik "+ Teman" dan masukkan ID temanmu untuk mulai obrolan privat.
+        </div>
+      </div>
+
+      <form id="messageForm" class="hidden">
+        <input type="text" id="messageInput" placeholder="Ketik pesan..." required autocomplete="off">
+        <button type="submit" class="btn" style="width: auto; padding: 0 20px;">Kirim</button>
+      </form>
+    </div>
+
+  </div>
+
+  <script>
+    // Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDemoKeyOnlyForPublicChatTest123",
+      authDomain: "chat-demo-app.firebaseapp.com",
+      projectId: "chat-demo-app",
+      storageBucket: "chat-demo-app.appspot.com",
+      messagingSenderId: "123456789",
+      appId: "1:123456789:web:abcdef123456"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    let currentUser = null;
+    let activeChatId = null;
+    let activeFriend = null;
+    let unsubscribe = null;
+
+    // Login Form Submit
+    document.getElementById('loginForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const name = document.getElementById('usernameInput').value.trim();
+      if (!name) return;
+
+      const id = 'user_' + Math.random().toString(36).substr(2, 6);
+      currentUser = { id, name };
+
+      db.collection('users').doc(id).set({ id, name });
+
+      document.getElementById('myUsername').textContent = name;
+      document.getElementById('myUserId').textContent = `ID: ${id}`;
+      document.getElementById('myAvatar').textContent = name.charAt(0).toUpperCase();
+
+      document.getElementById('myUserId').onclick = () => {
+        navigator.clipboard.writeText(id);
+        alert('User ID berhasil disalin!\nKirimkan ID ini ke temanmu: ' + id);
+      };
+
+      document.getElementById('authScreen').classList.add('hidden');
+      document.getElementById('appLayout').classList.remove('hidden');
+
+      // Tampilkan chatArea jika di layar laptop/desktop
+      if (window.innerWidth >= 650) {
+        document.getElementById('chatArea').classList.remove('hidden');
+      }
+    });
+
+    // Tombol Tambah Teman
+    document.getElementById('addContactBtn').onclick = async () => {
+      const friendId = prompt("Masukkan User ID Temanmu:");
+      if (!friendId) return;
+      if (friendId === currentUser.id) return alert("Tidak bisa memasukkan ID kamu sendiri!");
+
+      const userDoc = await db.collection('users').doc(friendId).get();
+      if (!userDoc.exists) return alert("User ID tidak ditemukan!");
+
+      openChat(userDoc.data());
+    };
+
+    // Fungsi Buka Chat
+    function openChat(friend) {
+      activeFriend = friend;
+      activeChatId = [currentUser.id, friend.id].sort().join('_');
+
+      document.getElementById('activeName').textContent = friend.name;
+      document.getElementById('activeStatus').textContent = `ID: ${friend.id}`;
+      document.getElementById('activeAvatar').textContent = friend.name.charAt(0).toUpperCase();
+
+      document.getElementById('messageForm').classList.remove('hidden');
+      document.getElementById('chatArea').classList.remove('hidden');
+
+      listenMessages();
+      renderSidebarContact(friend);
+    }
+
+    // Tombol Kembali (Khusus Tampilan HP)
+    document.getElementById('backBtn').onclick = () => {
+      if (window.innerWidth < 650) {
+        document.getElementById('chatArea').classList.add('hidden');
+      }
+    };
+
+    // Realtime Message Listener
+    function listenMessages() {
+      if (unsubscribe) unsubscribe();
+
+      const container = document.getElementById('messagesContainer');
+      container.innerHTML = '';
+
+      unsubscribe = db.collection('chats')
+        .doc(activeChatId)
+        .collection('messages')
+        .orderBy('timestamp', 'asc')
+        .onSnapshot(snapshot => {
+          container.innerHTML = '';
+          snapshot.forEach(doc => {
+            const msg = doc.data();
+            const isMe = msg.senderId === currentUser.id;
+            const time = msg.timestamp ? new Date(msg.timestamp.toDate()).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : '';
+
+            const div = document.createElement('div');
+            div.className = `message ${isMe ? 'me' : 'them'}`;
+            div.innerHTML = `<div>${escapeHtml(msg.text)}</div><div class="time">${time}</div>`;
+            container.appendChild(div);
+          });
+          container.scrollTop = container.scrollHeight;
+        });
+    }
+
+    // Kirim Pesan
+    document.getElementById('messageForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('messageInput');
+      const text = input.value.trim();
+      if (!text || !activeChatId) return;
+
+      input.value = '';
+
+      await db.collection('chats').doc(activeChatId).collection('messages').add({
+        senderId: currentUser.id,
+        text: text,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+
+    // Render Item Kontak di Sidebar
+    function renderSidebarContact(friend) {
+      const list = document.getElementById('chatList');
+      if (document.getElementById(`contact-${friend.id}`)) return;
+
+      const item = document.createElement('div');
+      item.id = `contact-${friend.id}`;
+      item.className = 'contact-item';
+      item.innerHTML = `
+        <div class="avatar">${friend.name.charAt(0).toUpperCase()}</div>
+        <div class="user-info">
+          <h3>${escapeHtml(friend.name)}</h3>
+          <p style="color:#8696a0;">Klik untuk obrolan</p>
+        </div>
+      `;
+      item.onclick = () => openChat(friend);
+      list.appendChild(item);
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+  </script>
+</body>
+</html>
